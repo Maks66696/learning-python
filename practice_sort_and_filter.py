@@ -21,7 +21,7 @@ def func_sorted(n):
 filtered_produts = list(filter(in_stock_filter, products))
 print(filtered_produts)
 
-sorted_products = sorted(products, key=func_sorted)
+sorted_products = sorted(filtered_produts, key=func_sorted)
 print("Результат: ")
 for item in sorted_products:
     print(item)
