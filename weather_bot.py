@@ -1,10 +1,13 @@
+import os
+from dotenv import load_dotenv
 import requests
 import geopy
 from geopy.geocoders import Nominatim
 from telebot import TeleBot
 from telebot.types import KeyboardButton, ReplyKeyboardMarkup
 
-TOKEN = "8640334347:AAFWE9Rp-hFBxonMYR9ZMV4VRJFCkAbNyVw"
+load_dotenv()
+TOKEN = os.getenv("BOT_TOKEN")
 bot = TeleBot(TOKEN)
 
 CITIES = {
