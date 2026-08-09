@@ -4,7 +4,7 @@ from geopy.geocoders import Nominatim
 from telebot import TeleBot
 from telebot.types import KeyboardButton, ReplyKeyboardMarkup
 
-TOKEN = "8640334347:AAFWE9Rp-hFBxonMYR9ZMV4VRJFCkAbNyVw"
+TOKEN = ""
 bot = TeleBot(TOKEN)
 
 CITIES = {
