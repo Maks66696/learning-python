@@ -36,15 +36,16 @@ def send_weather(message):
     response=requests.get(url)
     data=response.json()
     temp=data["current_weather"]["temperature"]
-    if temp < 0:
+    advice = "Одевайся по погоде!" 
+    if temp <= 0:
         advice = "На улице мороз! Надевай пуховик, шапку и шарф."
-    elif temp < 15:
+    elif temp <= 15: 
         advice = "Прохладно. Надевай куртку или тёплую худи."
-    elif temp < 22:
+    elif temp <= 22: 
         advice = "Приятная погода. Подойдёт кофта или ветровка."
-    elif temp > 25:
+    elif temp < 35:  
         advice = "Жара! Надевай футболку и шорты."
-    elif temp > 35:
+    else:            
         advice = "Экстремальная жара! Не выходи на солнце без кепки и пей больше воды!"
     text= f"Погода в **{city_name}**: {temp}°C\n\n{advice}"
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
@@ -62,15 +63,16 @@ def handel_location(message):
     response=requests.get(url)
     data=response.json()
     temp=data["current_weather"]["temperature"]
-    if temp < 0:
+    advice = "Одевайся по погоде!" 
+    if temp <= 0:
         advice = "На улице мороз! Надевай пуховик, шапку и шарф."
-    elif temp < 15:
+    elif temp <= 15: 
         advice = "Прохладно. Надевай куртку или тёплую худи."
-    elif temp < 22:
+    elif temp <= 22: 
         advice = "Приятная погода. Подойдёт кофта или ветровка."
-    elif temp > 25:
+    elif temp < 35: 
         advice = "Жара! Надевай футболку и шорты."
-    elif temp > 35:
+    else:            
         advice = "Экстремальная жара! Не выходи на солнце без кепки и пей больше воды!"
     text = f"Погода по вашей геолокации:{temp}°C\n\n{advice}"
     text = f"Погода в {city_name}: {temp}°C\n\n{advice}"
