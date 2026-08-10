@@ -17,6 +17,22 @@ CITIES = {
     "Сочи": {"lat": 43.6028, "lon": 39.7342},
 }
 
+WEATHER_CODES = {
+    0: "☀️ Ясно",
+    1: "🌤️ Малооблачно",
+    2: "⛅ Переменная облачность",
+    3: "☁️ Пасмурно",
+    45: "🌫️ Туман",
+    51: "🌧️ Морось",
+    61: "🌧️ Небольшой дождь",
+    63: "🌧️ Умеренный дождь",
+    65: "🌧️ Сильный дождь",
+    71: "❄️ Небольшой снег",
+    73: "❄️ Снегопад",
+    80: "🌦️ Ливень",
+    95: "🌩️ Гроза",
+}
+
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
     markup = ReplyKeyboardMarkup(row_width=1)
@@ -31,7 +47,11 @@ def get_weather_report(lat, lon, city_name):
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
     response = requests.get(url)
     data = response.json()
-    temp = data["current_weather"]["temperature"]
+    current = data["current_weather"]
+    temp = current["temperature"]
+    code = current["weathercode"]
+    wind = current["windspeed"]
+    status = WEATHER_CODES.get(code, "🌈 Погода")
     advice = "Одевайся по погоде!"
     if temp <= 0:
         advice = "На улице мороз! Надевай пуховик, шапку и шарф."
@@ -44,8 +64,7 @@ def get_weather_report(lat, lon, city_name):
     else:
         advice = "Экстремальная жара! Не выходи на солнце без кепки и пей больше воды!"
 
-    
-    return f"Погода в **{city_name}**: {temp}°C\n\n{advice}"
+    return f"Погода в **{city_name}**: {temp}°C\n{status}\n💨 Ветер: {wind} км/ч\n\n{advice}"
 
 @bot.message_handler(func=lambda message: message.text in CITIES.keys())
 def send_weather(message):
@@ -78,3 +97,4 @@ def handle_location(message):
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
     
 bot.infinity_polling()
+
