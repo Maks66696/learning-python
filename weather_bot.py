@@ -1,4 +1,7 @@
 import os
+import csv
+import datetime
+import matplotlib
 import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 import requests
@@ -6,6 +9,8 @@ import geopy
 from geopy.geocoders import Nominatim
 from telebot import TeleBot
 from telebot.types import KeyboardButton, ReplyKeyboardMarkup
+
+matplotlib.use("Agg")  
 
 geolocator = Nominatim(user_agent="my_weather_bot")
 load_dotenv()
@@ -57,7 +62,10 @@ def get_weather_report(lat, lon, city_name):
 
     temps= data["hourly"]["temperature_2m"][:24]
     raw_times = data["hourly"]["time"][:24]
-    formatted_times = [t[11:16] for t in raw_times]
+    formatted_times = [
+         datetime.datetime.fromisoformat(t).strftime("%H:%M") for t in 
+         raw_times
+    ]
     status = WEATHER_CODES.get(code, "🌈 Погода")
 
     advice = "Одевайся по погоде!"
@@ -77,7 +85,7 @@ def get_weather_report(lat, lon, city_name):
         f"Погода в **{city_name}**: {temp}°C\n{status}\n💨 Ветер:"
         f" {wind} км/ч\n\n{advice}"
     )
-
+    log_request(city_name, temp)
     return text, chart_file
 
 
@@ -149,6 +157,16 @@ def handle_location(message):
             bot.send_photo(
                 message.chat.id, photo=photo, caption=text, parse_mode="Markdown"
         )
+
+def log_request(city_name, temp):
+     current_date = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+     with open("logs.csv", "a", encoding="utf-8", newline="") as file:
+          now = [current_date,temp,city_name]
+          csv_writer = csv.writer(file)
+          csv_writer.writerow([now])
+
+     
     
 bot.infinity_polling()
+
 
