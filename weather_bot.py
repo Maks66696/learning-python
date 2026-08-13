@@ -1,3 +1,4 @@
+import io
 import os
 import csv
 import datetime
@@ -9,9 +10,15 @@ import geopy
 from geopy.geocoders import Nominatim
 from telebot import TeleBot
 from telebot.types import KeyboardButton, ReplyKeyboardMarkup
+from telebot.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
+
 
 matplotlib.use("Agg")  
-
 geolocator = Nominatim(user_agent="my_weather_bot")
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -49,11 +56,16 @@ def send_welcome(message):
         markup.add(item_button)
     bot.send_message(message.chat.id, "Выбери город", reply_markup=markup)
 
+
 def get_weather_report(lat, lon, city_name):
     city_name = str(city_name).split(',')[0].strip()
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=temperature_2m&forecast_days=1"
-    response = requests.get(url)
-    data = response.json()
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException:
+        return "⚠️ Сервис погоды временно недоступен. Попробуйте позже!", None
 
     current = data["current_weather"]
     temp = current["temperature"]
@@ -89,39 +101,18 @@ def get_weather_report(lat, lon, city_name):
     return text, chart_file
 
 
-def create_chart(times, temps, city_name):
-    # 1. Создаём прямоугольное поле для графика
-    plt.figure(figsize=(10, 5))
-
-    # 2. Рисуем линию графика
-    plt.plot(times, temps, marker="o", color="#1E88E5", linewidth=2)
-
-    # 3. Настраиваем подписи и сетку
-    plt.title(f"Прогноз погоды на 24 часа: {city_name}", fontsize=14)
-    plt.xlabel("Время", fontsize=10)
-    plt.ylabel("Температура (°C)", fontsize=10)
-    plt.grid(True, linestyle="--", alpha=0.5)
-    plt.xticks(rotation=45)  # Поворачиваем подписи времени под углом 45 градусов
-
-    # 4. Сохраняем в картинку
-    file_path = "chart.png"
-    plt.savefig(file_path, bbox_inches="tight")
-    plt.close()  
-
-    return file_path
-
-
 @bot.message_handler(func=lambda message: message.text in CITIES.keys())
 def send_weather(message):
     city_name = message.text
     lat=CITIES[city_name]["lat"]
     lon=CITIES[city_name]["lon"]
-
-    text, chart_file = get_weather_report(lat, lon, city_name)
-
-    with open(chart_file, "rb") as photo:
+    inline_markup = get_refresh_keyboard(lat, lon, city_name)
+    text, chart_buf = get_weather_report(lat, lon, city_name)
+    if chart_buf is None:
+        bot.send_message(message.chat.id, text)
+    else:
         bot.send_photo(
-            message.chat.id, photo=photo, caption=text, parse_mode="Markdown"
+         message.chat.id, photo=chart_buf, caption=text, parse_mode="Markdown", reply_markup = inline_markup,
     )
 
 
@@ -134,13 +125,14 @@ def text_search(message):
     lat = location.latitude
     lon = location.longitude
     city_title = location.address.split(',')[0]
-
-    text, chart_file = get_weather_report(lat, lon, city_title)
-
-    with open(chart_file, "rb") as photo:
-            bot.send_photo(
-                message.chat.id, photo=photo, caption=text, parse_mode="Markdown"
-        )
+    inline_markup = get_refresh_keyboard(lat, lon, city_title)
+    text, chart_buf = get_weather_report(lat, lon, city_title)
+    if chart_buf is None:
+        bot.send_message(message.chat.id, text)
+    else:
+        bot.send_photo(
+        message.chat.id, photo=chart_buf, caption=text, parse_mode="Markdown", reply_markup = inline_markup,
+    )
 
 
 @bot.message_handler(content_types=["location"])
@@ -151,11 +143,43 @@ def handle_location(message):
     address = location.raw.get('address', {})
     city_name = address.get('city') or address.get('town') or address.get('village') or "вашей локации"
 
-    text, chart_file = get_weather_report(lat, lon, city_name)
+    text, chart_buf = get_weather_report(lat, lon, city_name)
+    inline_markup = get_refresh_keyboard(lat, lon, city_name)
 
-    with open(chart_file, "rb") as photo:
-            bot.send_photo(
-                message.chat.id, photo=photo, caption=text, parse_mode="Markdown"
+    if chart_buf is None:
+        bot.send_message(message.chat.id, text)
+    else:
+        bot.send_photo(
+        message.chat.id, photo=chart_buf, caption=text, parse_mode="Markdown", reply_markup = inline_markup,
+    )
+
+def get_refresh_keyboard(lat, lon, city_name):
+    markup = InlineKeyboardMarkup()
+    callback_string = f"refresh_{lat}_{lon}_{city_name}"
+    btn_refresh = InlineKeyboardButton(
+        "🔄 Обновить", callback_data = callback_string
+    )
+    markup.add(btn_refresh)
+    return markup
+
+@bot.callback_query_handler(func=lambda call: call.data.startswitch("refresh_"))
+def handle_refresh(call):
+    bot.answer_callback_query(call.id, "🔄 Обновляю данные погоды...")
+    parts = call.data.split("_")
+    lat = float(parts[1])
+    lon = float(parts[2])
+    city_name = parts[3]
+
+    text , chart_buf = get_weather_report(lat,lon, city_name)
+
+    if chart_buf:
+        inline_markup = get_weather_report(lat, lon, city_name)
+        bot.send_photo(
+            call.message.chat.id,
+            photo=chart_buf,
+            caption=text,
+            parse_mode="Markdown",
+            reply_markup=inline_markup,
         )
 
 def log_request(city_name, temp):
@@ -163,8 +187,23 @@ def log_request(city_name, temp):
      with open("logs.csv", "a", encoding="utf-8", newline="") as file:
           now = [current_date,temp,city_name]
           csv_writer = csv.writer(file)
-          csv_writer.writerow([now])
+          csv_writer.writerow(now)
 
+def create_chart(times, temps, city_name):
+     
+     plt.figure(figsize= (10,5))
+     plt.plot(times, temps, marker="o", color="#1E88E5", linewidth=2)
+     plt.title(f"Прогноз погоды на 24 часа: {city_name}", fontsize=14)
+     plt.xlabel("Время", fontsize=10)
+     plt.ylabel("Температура (°C)", fontsize=10)
+     plt.grid(True, linestyle="--", alpha=0.5)
+     plt.xticks(rotation=45)
+     buf = io.BytesIO()
+     plt.savefig(buf, format="png", bbox_inches = "tight")
+     buf.seek(0)
+     plt.close()
+
+     return buf
      
     
 bot.infinity_polling()
