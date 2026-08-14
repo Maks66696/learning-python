@@ -57,7 +57,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, "Выбери город", reply_markup=markup)
 
 
-def get_weather_report(lat, lon, city_name):
+def get_weather_report( lat, lon, city_name, user_name="Аноним"):
     city_name = str(city_name).split(',')[0].strip()
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=temperature_2m&forecast_days=1"
     try:
@@ -97,7 +97,7 @@ def get_weather_report(lat, lon, city_name):
         f"Погода в **{city_name}**: {temp}°C\n{status}\n💨 Ветер:"
         f" {wind} км/ч\n\n{advice}"
     )
-    log_request(city_name, temp)
+    log_request(user_name, city_name, temp)
     return text, chart_file
 
 
@@ -106,8 +106,11 @@ def send_weather(message):
     city_name = message.text
     lat=CITIES[city_name]["lat"]
     lon=CITIES[city_name]["lon"]
-    inline_markup = get_refresh_keyboard(lat, lon, city_name)
-    text, chart_buf = get_weather_report(lat, lon, city_name)
+    user_name = (
+        message.from_user.username or message.from_user.first_name or "Аноним"
+    )
+    inline_markup = get_refresh_keyboard(lat, lon, city_name, user_name)
+    text, chart_buf = get_weather_report(lat, lon, city_name, user_name)
     if chart_buf is None:
         bot.send_message(message.chat.id, text)
     else:
@@ -125,8 +128,11 @@ def text_search(message):
     lat = location.latitude
     lon = location.longitude
     city_title = location.address.split(',')[0]
+    user_name = (
+            message.from_user.username or message.from_user.first_name or "Аноним"
+    )
+    text, chart_buf = get_weather_report(lat, lon, city_title, user_name)
     inline_markup = get_refresh_keyboard(lat, lon, city_title)
-    text, chart_buf = get_weather_report(lat, lon, city_title)
     if chart_buf is None:
         bot.send_message(message.chat.id, text)
     else:
@@ -142,8 +148,11 @@ def handle_location(message):
     location = geolocator.reverse((lat, lon), language='ru')
     address = location.raw.get('address', {})
     city_name = address.get('city') or address.get('town') or address.get('village') or "вашей локации"
-
-    text, chart_buf = get_weather_report(lat, lon, city_name)
+    user_name = (
+        message.from_user.username or message.from_user.first_name or "Аноним"
+    )
+    
+    text, chart_buf = get_weather_report(lat, lon, city_name, user_name)
     inline_markup = get_refresh_keyboard(lat, lon, city_name)
 
     if chart_buf is None:
@@ -162,7 +171,7 @@ def get_refresh_keyboard(lat, lon, city_name):
     markup.add(btn_refresh)
     return markup
 
-@bot.callback_query_handler(func=lambda call: call.data.startswitch("refresh_"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("refresh_"))
 def handle_refresh(call):
     bot.answer_callback_query(call.id, "🔄 Обновляю данные погоды...")
     parts = call.data.split("_")
@@ -182,12 +191,12 @@ def handle_refresh(call):
             reply_markup=inline_markup,
         )
 
-def log_request(city_name, temp):
+def log_request(user_name, city_name, temp):
      current_date = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
      with open("logs.csv", "a", encoding="utf-8", newline="") as file:
-          now = [current_date,temp,city_name]
+          row = [current_date,temp,city_name,user_name]
           csv_writer = csv.writer(file)
-          csv_writer.writerow(now)
+          csv_writer.writerow(row)
 
 def create_chart(times, temps, city_name):
      
@@ -207,5 +216,4 @@ def create_chart(times, temps, city_name):
      
     
 bot.infinity_polling()
-
 
